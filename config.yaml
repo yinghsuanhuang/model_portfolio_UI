@@ -1,0 +1,49 @@
+project:
+  timezone: Asia/Taipei
+  price_return_method: simple   # simple | log
+
+paths:
+  data_dir: data
+  expected_return_xlsx: "指數預期報酬率-1.xlsx"
+  module_return_xlsx: "模組報酬率.xlsx"
+
+universe:
+  market_list: ["SPX Index","SXXP Index","NKY Index","MXMS Index","SHCOMP Index","TWSE Index"]
+  industry_list: ["科技"]
+  bond_list: ["投資級債","非投資級債","新興市場債"]
+  benchmark_cols: ["LUCRTRUU_Index","LEGATRUU_Index","LG30TRUU_Index"]
+
+dates:
+  start_date: "2010-12-31"              # 建構投組的起點（在此前一月末完成建構）
+  backtest_start: "2012-01-31"
+  backtest_end: "2025-10-31"
+
+schedule:
+  T_months: 180                         # 12*15
+  weight_update_freq_months: 1          # t
+  rebalance_rule: "Q"                   # M | A | Q | 2Q-DEC
+
+risk:
+  lookback_months: 36
+  mar: 0.0                              # Sortino 下行門檻（同頻報酬率門檻；月頻用 0.0 表示 0%）
+  cov_method: ledoitwolf                # ledoitwolf | sample
+  annualize_factor: 12                  # 月頻=12
+
+return_model:
+  rolling_years: 5
+  lookback_mom_months: 3
+
+constraints:
+  lower: 0.0
+  upper: 0.5
+  stock_type_limit: 0.7                 # 股票(市場+產業)權重上限
+
+optimizer:
+  objective: "sortino"                  # sharpe | sortino | utility
+  l2_gamma: 0.1                         # 權重平滑（L2 正則）
+  risk_aversion: 2.0                    # max_quadratic_utility 的 risk_aversion
+
+backtest:
+  starting_capital: 1.0
+  trading_cost_bps: 0.0
+  rf_annual: 0.0
