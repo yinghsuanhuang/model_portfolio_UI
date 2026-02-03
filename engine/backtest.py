@@ -53,6 +53,7 @@ def backtest_dynamic_weights_monthly(
     trading_cost_bps: float,
     rf_annual: float,
 ):
+
     ppY = infer_periods_per_year(returns_df.index)
     if ppY != 12:
         raise ValueError(f"returns_df 必須是月頻（月末）；目前偵測到 periods_per_year={ppY}")
@@ -134,15 +135,76 @@ def backtest_dynamic_weights_monthly(
     weights_out = pd.DataFrame(weights_hist, index=returns_df.index, columns=returns_df.columns)
     return nav, rets, weights_out, stats
 
-def run_all_frequencies_monthly(returns_df, weights_df, starting_capital, trading_cost_bps, rf_annual):
-    out = {}
-    for rule in ["M", "A", "Q", "2Q-DEC"]:
+# ===================== Notebook-style 理論回測（w · r） =====================
+def backtest_model_weights_monthly(
+    returns_df: pd.DataFrame,
+    weights_df: pd.DataFrame,
+):
+    """
+    完全對齊 Notebook 的回測方式：
+    每期投組報酬 = w_t · r_t
+    不考慮 holdings 漂移
+    不考慮交易模擬
+    純粹驗證 Markowitz 權重是否有效
+    """
+
+    # 對齊權重
+    w = align_weights_to_returns(returns_df, weights_df)
+
+    # 每期投組報酬
+    port_ret = (w * returns_df).sum(axis=1)
+
+    # NAV
+    nav = (1 + port_ret).cumprod()
+    nav.name = "NAV_MODEL"
+
+    return nav, port_ret
+
+
+def run_all_frequencies_monthly(
+    returns_df,
+    weights_df,
+    starting_capital=1.0,
+    trading_cost_bps=0.0,
+    rf_annual=0.0,
+):
+    results = {}
+
+    # ========= 原本的「真實交易模擬」 =========
+    for rule in ['M', 'A', 'Q', '2Q-DEC']:
         nav, rets, wts, stats = backtest_dynamic_weights_monthly(
-            returns_df, weights_df,
+            returns_df,
+            weights_df,
             rebalance_rule=rule,
             starting_capital=starting_capital,
             trading_cost_bps=trading_cost_bps,
             rf_annual=rf_annual,
         )
-        out[rule] = {"nav": nav, "returns": rets, "weights": wts, "stats": stats}
-    return out
+
+        results[rule] = {
+            'nav': nav,
+            'returns': rets,
+            'weights': wts,
+            'stats': stats,
+            'asset_returns': returns_df,
+            'mode': 'trading'
+        }
+
+    # ========= 新增：Notebook 理論驗證 =========
+    nav_model, rets_model = backtest_model_weights_monthly(
+        returns_df,
+        weights_df,
+    )
+
+    results['MODEL'] = {
+        'nav': nav_model,
+        'returns': rets_model,
+        'weights': weights_df,
+        'stats': {},
+        'asset_returns': returns_df,
+        'mode': 'model'
+    }
+
+    return results
+
+

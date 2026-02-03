@@ -15,14 +15,7 @@ from engine.backtest import run_all_frequencies_monthly
 # ===================== 核心 Pipeline =====================
 
 def run_full_pipeline_markowitz(cfg: dict, data: dict):
-    """
-    正確邏輯（與 notebook 一致）：
-    - 用 t-1 的資料算 mu / Sigma
-    - 算出權重 w_t
-    - 套用在 t 期的實際報酬
-    """
 
-    start_date = pd.to_datetime(cfg["dates"]["start_date"])
     bt_start   = pd.to_datetime(cfg["dates"]["backtest_start"])
     bt_end     = pd.to_datetime(cfg["dates"]["backtest_end"])
     lookback   = int(cfg["risk"]["lookback_months"])
@@ -31,18 +24,22 @@ def run_full_pipeline_markowitz(cfg: dict, data: dict):
     all_returns = []
     all_dates   = []
 
-    print("▶ Building rolling Markowitz weights...")
+    print("▶ Building Markowitz weights (Notebook time-aligned)...")
 
-    # 從「回測起始日前一個月」開始算權重
+    # 從 bt_start 的「前一個月」開始建模
     cur = bt_start - MonthEnd(1)
 
-    while cur < bt_end:
+    while True:
+        next_date = cur + MonthEnd(1)
+
+        if next_date > bt_end:
+            break
+
         # ==================================================
-        # 1) 用 cur（t-1）以前的資料建模
+        # 1) 用「cur」的資料建模（t-1 資訊）
         # ==================================================
         mu, hist_all, _ = build_expected_return(end=cur, config=cfg, data=data)
 
-        # 風險 window（一定是過去資料）
         window = hist_all.iloc[-lookback:].copy()
 
         Sigma = build_covariance(
@@ -53,45 +50,29 @@ def run_full_pipeline_markowitz(cfg: dict, data: dict):
         )
 
         # ==================================================
-        # 2) 解出「下一期」要用的權重
+        # 2) 解出「下個月要用」的權重 w(t)
         # ==================================================
         w = solve_weights(mu=mu, sigma=Sigma, window=window, config=cfg)
 
         # ==================================================
-        # 3) 取得「下一期」實際報酬
+        # 3) 取得「next_date」的實際月報酬 r(t)
         # ==================================================
-        next_date = cur + MonthEnd(1)
-
-        # 用 data 中的 bond_industry + market 算實際報酬
-        # 最乾淨方式：再呼叫一次 build_expected_return 拿 hist
         _, hist_next, _ = build_expected_return(end=next_date, config=cfg, data=data)
-
-        r = hist_next.iloc[-1]  # 當期月報酬
+        r_next = hist_next.iloc[-1]
 
         # ==================================================
-        # 4) 紀錄
+        # 4) 記錄（權重與報酬都屬於 next_date）
         # ==================================================
         all_dates.append(next_date)
         all_weights.append(w.values)
-        all_returns.append(r.values)
+        all_returns.append(r_next.values)
 
-        # 前進一期
+        # 前進一個月
         cur = next_date
 
-    # 組成 DataFrame
     weights_df = pd.DataFrame(all_weights, index=all_dates, columns=mu.index)
     returns_df = pd.DataFrame(all_returns, index=all_dates, columns=mu.index)
 
-    weights_df = weights_df.sort_index()
-    returns_df = returns_df.sort_index()
-
-    # 對齊回測區間
-    weights_df = weights_df.loc[bt_start:bt_end]
-    returns_df = returns_df.loc[bt_start:bt_end]
-
-    # ==================================================
-    # 5) 回測
-    # ==================================================
     results = run_all_frequencies_monthly(
         returns_df,
         weights_df,
@@ -101,6 +82,7 @@ def run_full_pipeline_markowitz(cfg: dict, data: dict):
     )
 
     return results, weights_df, returns_df
+
 
 
 # ===================== UI 用 =====================
