@@ -32,7 +32,7 @@ def plot_multiple(results_list, labels, rule, item):
 
 # ================== UI ==================
 st.set_page_config(page_title="Model Portfolio Lab", layout="wide")
-st.title("📊 Model Portfolio 策略研究平台")
+st.title("Model Portfolio 策略研究平台")
 
 # -------- Sidebar --------
 
@@ -61,7 +61,10 @@ if run_btn:
     cfg["return_model"]["rolling_year"] = rolling_year
     cfg["backtest"]["trading_cost_bps"] = trading_cost
 
-    results_list, name_list = run_ui_pipeline(cfg)
+    with st.spinner("🚀 正在執行回測運算中，請稍候... (Running Backtest...)"):
+        results_list, name_list = run_ui_pipeline(cfg)
+
+    st.success("✅ 回測完成！ (Backtest Completed!)")
     results_marko = results_list[0]
 
     # ===== 績效表 =====
@@ -117,11 +120,12 @@ if run_btn:
 
         st.dataframe(
             latest.to_frame("Weight").style.format("{:.2%}"),
-            width="stretch",
+            use_container_width=True,
         )
 
-        with st.expander("展開全部權重"):
+        # Spacer removed
+        with st.expander("點擊展開查看全部歷史權重 (Expand Full Weight History)"):
             st.dataframe(
                 weights_all.style.format("{:.2%}"),
-                width="stretch",
+                use_container_width=True,
             )
