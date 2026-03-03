@@ -153,8 +153,14 @@ def build_expected_return(end: pd.Timestamp, config: dict, data: dict):
         hist_df = pd.concat([hist_df, r], axis=1)
 
     # ========= 產業（CAPM beta；對齊 notebook） =========
-    spx_name = market_list[0].replace(" ", "_")
-    spx_exp = exp_list[asset_list.index(spx_name)]  # 已是年化
+    if industry_list:
+        if not market_list:
+             # 如果有 industry 但沒有 market_list，無法計算 CAPM beta (需要 SPX)
+             # 這裡假設 configuraiton 不會發生這種情況，或者需要另外處理
+             raise ValueError("industry_list is not empty but market_list is empty. Cannot compute CAPM beta.")
+
+        spx_name = market_list[0].replace(" ", "_")
+        spx_exp = exp_list[asset_list.index(spx_name)]  # 已是年化
 
     for ind in industry_list:
         start_beta = row2_end.name - pd.DateOffset(years=rolling_years)

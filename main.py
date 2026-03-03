@@ -125,7 +125,7 @@ def run_ui_pipeline(cfg: dict):
     results_list = [results_marko, results_eq, results_6040]
     name_list = ["Markowitz", "Equal Weight", "60/40"]
 
-    return results_list, name_list
+    return results_list, name_list, weights_df
 
 
 # ===================== CLI 入口 =====================
