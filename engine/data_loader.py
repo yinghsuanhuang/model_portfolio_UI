@@ -9,7 +9,7 @@ def _load_and_resample_month_end(df: pd.DataFrame) -> pd.DataFrame:
     統一處理：
     - index 轉成 DatetimeIndex
     - sort
-    - resample("M").last()  → 統一成「月頻、取月底」
+    - resample("ME").last()  → 統一成「月頻、取月底」
     - 再補上 MonthEnd(0) 確保是月底
     """
     df = df.copy()
@@ -17,7 +17,7 @@ def _load_and_resample_month_end(df: pd.DataFrame) -> pd.DataFrame:
     df = df.sort_index()
 
     # 關鍵：全部 resample 成月頻（取該月最後一筆）
-    df = df.resample("M").last()
+    df = df.resample("ME").last()
 
     # 確保 index 都是月末
     df.index = df.index + MonthEnd(0)

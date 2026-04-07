@@ -61,13 +61,13 @@ def backtest_dynamic_weights_monthly(
     w_aligned = align_weights_to_returns(returns_df, weights_df)
 
     if rebalance_rule == "M":
-        rebal_idx = returns_df.resample("M").last().index[:-1]
+        rebal_idx = returns_df.resample("ME").last().index[:-1]
     elif rebalance_rule == "A":
-        rebal_idx = returns_df.resample("A").last().index
+        rebal_idx = returns_df.resample("YE").last().index
     elif rebalance_rule == "Q":
-        rebal_idx = returns_df.resample("Q").last().index
+        rebal_idx = returns_df.resample("QE").last().index
     elif rebalance_rule == "2Q-DEC":
-        q_end = returns_df.resample("Q").last()
+        q_end = returns_df.resample("QE").last()
         rebal_idx = q_end[q_end.index.month.isin([6, 12])].index
     else:
         raise ValueError("rebalance_rule 僅支援 M | A | Q | 2Q-DEC")

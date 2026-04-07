@@ -49,7 +49,7 @@ profile = st.sidebar.selectbox(
 )
 
 # 預設行為：只有在選擇「積極型投資人」時顯示原有選項
-if profile in ["積極型投資人", "成長型投資人", "保守型投資人"]:
+if profile in ["積極型投資人", "成長型投資人", "穩健型投資人", "保守型投資人"]:
     st.sidebar.markdown("---")
     st.sidebar.header("進階參數設定")
     
@@ -85,6 +85,22 @@ if profile in ["積極型投資人", "成長型投資人", "保守型投資人"]
         asset_upper_default = {}
         
         # 成長型：沒有非投資級債上限
+        default_non_ig_limit = 1.0
+        
+    elif profile == "穩健型投資人":
+        st.sidebar.info("穩健型預設：\n- 股票總上限 40%\n- 排除產業類別\n- 單一資產上限 20%\n- 債券無限制")
+        
+        default_rule_idx = 1 # Q
+        default_obj_idx = 2 # utility (index 2)
+        default_upper = 0.2 # 單一資產上限 20%
+        
+        # 穩健型：股票總上限 40%
+        default_stock_limit = 0.4
+        
+        # 穩健型：沒有額外的 asset_upper
+        asset_upper_default = {}
+        
+        # 穩健型：沒有非投資級債上限
         default_non_ig_limit = 1.0
         
     else: # 保守型投資人
@@ -157,7 +173,10 @@ if profile in ["積極型投資人", "成長型投資人", "保守型投資人"]
     # 我們需要把這些變數傳遞給下面的執行區塊
     # 或是直接在這裡修改 base_cfg 對象 (注意：base_cfg 是 dict，mutable)
     
-    if profile == "保守型投資人":
+    if profile == "穩健型投資人":
+        base_cfg["universe"]["industry_list"] = []  # 排除產業
+    
+    elif profile == "保守型投資人":
         base_cfg["universe"]["market_list"] = []
         base_cfg["universe"]["industry_list"] = []
         base_cfg["universe"]["bond_list"] = ["投資級債", "非投資級債"]
