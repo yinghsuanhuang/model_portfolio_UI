@@ -61,58 +61,61 @@ if profile in ["積極型投資人", "成長型投資人", "穩健型投資人",
         default_rule_idx = 1 # Q (index 1 of ["M", "Q", "A", "2Q-DEC"])
         default_obj_idx = 0 # sortino
         default_upper = float(base_cfg["constraints"]["upper"])
-        
+
         # 積極型：股票上限讀 config (通常 0.7)
         default_stock_limit = float(base_cfg["constraints"]["stock_type_limit"])
-        
-        # 積極型：沒有額外的 asset_upper
-        asset_upper_default = {}
-        
+
+        # 積極型：債券下限 20%
+        default_bond_floor = 0.2
+
         # 積極型：沒有非投資級債上限
         default_non_ig_limit = 1.0 # 預設為 1.0，表示無限制
-        
+
     elif profile == "成長型投資人":
-        st.sidebar.info("成長型預設：\n- 股票總上限 60%\n- 單一股票/產業上限 20%\n- 債券無限制")
-        
+        st.sidebar.info("成長型預設：\n- 股票總上限 60%\n- 單一股票/產業上限 20%\n- 債券下限 40%")
+
         default_rule_idx = 1 # Q
         default_obj_idx = 1 # sharpe (index 1 of ["sortino", "sharpe", "utility", "min_variance"])
         default_upper = 0.2 # 單一資產上限 20%（含股票、產業）
-        
+
         # 成長型：股票總上限 60%
         default_stock_limit = 0.6
-        
-        # 成長型：沒有額外的 asset_upper
-        asset_upper_default = {}
-        
+
+        # 成長型：債券下限 40%
+        default_bond_floor = 0.4
+
         # 成長型：沒有非投資級債上限
         default_non_ig_limit = 1.0
-        
+
     elif profile == "穩健型投資人":
-        st.sidebar.info("穩健型預設：\n- 股票總上限 40%\n- 排除產業類別\n- 單一資產上限 20%\n- 債券無限制")
-        
+        st.sidebar.info("穩健型預設：\n- 股票總上限 40%\n- 排除產業類別\n- 單一資產上限 20%\n- 債券下限 60%")
+
         default_rule_idx = 1 # Q
         default_obj_idx = 2 # utility (index 2)
         default_upper = 0.2 # 單一資產上限 20%
-        
+
         # 穩健型：股票總上限 40%
         default_stock_limit = 0.4
-        
-        # 穩健型：沒有額外的 asset_upper
-        asset_upper_default = {}
-        
+
+        # 穩健型：債券下限 60%
+        default_bond_floor = 0.6
+
         # 穩健型：沒有非投資級債上限
         default_non_ig_limit = 1.0
-        
+
     else: # 保守型投資人
-        st.sidebar.info("保守型預設：\n- 僅包含 投資級債 & 非投資級債\n- 非投資級債上限 20%\n- 股票上限 0%")
-        
+        st.sidebar.info("保守型預設：\n- 僅包含 投資級債 & 非投資級債\n- 非投資級債上限 20%\n- 股票上限 0%\n- 債券下限 100%")
+
         default_rule_idx = 1 # Q
         default_obj_idx = 3 # min_variance (index 3)
         default_upper = 1.0 # 單一資產可達 100% (例如全買投資級債)
-        
+
         # 保守型：股票上限預設 0
         default_stock_limit = 0.0
-        
+
+        # 保守型：債券下限 100%
+        default_bond_floor = 1.0
+
         # 保守型：非投資級債上限預設 20%
         default_non_ig_limit = 0.2
 
@@ -151,11 +154,12 @@ if profile in ["積極型投資人", "成長型投資人", "穩健型投資人",
     objective = obj_func # Assign to 'objective' for downstream compatibility
 
     upper = st.sidebar.slider("單一資產上限", 0.0, 1.0, default_upper, 0.01)
-    
+
     stock_limit = st.sidebar.slider("股票總上限", 0.0, 1.0, default_stock_limit, 0.01)
-    
-    # 額外控制：非投資級債上限 (僅在保守型顯示，或總是顯示但預設 None?)
-    # 為了簡潔，只在保守型顯示這個特有參數
+
+    bond_floor = st.sidebar.slider("債券總下限", 0.0, 1.0, default_bond_floor, 0.01)
+
+    # 額外控制：非投資級債上限 (僅在保守型顯示)
     hy_bond_limit = 1.0
     if profile == "保守型投資人":
         hy_bond_limit = st.sidebar.slider("非投資級債上限", 0.0, 1.0, default_non_ig_limit, 0.01)
@@ -197,6 +201,7 @@ if run_btn:
     cfg["optimizer"]["objective"] = objective
     cfg["constraints"]["upper"] = upper
     cfg["constraints"]["stock_type_limit"] = stock_limit
+    cfg["constraints"]["bond_type_floor"] = bond_floor
     cfg["risk"]["lookback"] = lookback
     cfg["return_model"]["rolling_year"] = rolling_year
     cfg["backtest"]["trading_cost_bps"] = trading_cost

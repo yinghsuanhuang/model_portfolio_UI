@@ -73,7 +73,8 @@
 | `lookback_months` | `risk.lookback_months` | 24–60 | 共變異數估計回顧期；過短不穩定，過長對近期市況不敏感 |
 | `rolling_years` | `return_model.rolling_years` | 3–7 | EPS 成長率計算窗口；縮短反應近期趨勢，拉長降低雜訊 |
 | `upper` | `constraints.upper` | 0.2–0.5 | 單一資產上限；過低導致強制分散（可能降低 Sharpe） |
-| `stock_type_limit` | `constraints.stock_type_limit` | 0.4–0.8 | 股票類總上限；決定整體股債比 |
+| `stock_type_limit` | `constraints.stock_type_limit` | 0.0–0.8 | 股票類總上限；決定整體股債比上限 |
+| `bond_type_floor` | `constraints.bond_type_floor` | 0.0–1.0 | 債券類（bond_list）總權重下限；設太高在股票強勢期可能限制績效 |
 | `l2_gamma` | `optimizer.l2_gamma` | 0.05–0.5 | L2 正則強度；過大使權重趨向等權，過小可能極端集中 |
 | `risk_aversion` | `optimizer.risk_aversion` | 1.0–5.0 | 效用函數風險趨避（utility 模式）；越大越保守 |
 | `trading_cost_bps` | `backtest.trading_cost_bps` | 0–30 | 交易成本估計；0 為理想狀況，實際可設 5–15 bps |
@@ -88,6 +89,7 @@ optimizer:
 constraints:
   upper: 0.5
   stock_type_limit: 0.7
+  bond_type_floor: 0.2           # 債券總下限 20%
 risk:
   lookback_months: 36
 ```
@@ -100,6 +102,7 @@ optimizer:
 constraints:
   upper: 0.2
   stock_type_limit: 0.6
+  bond_type_floor: 0.4           # 債券總下限 40%
 risk:
   lookback_months: 36
 ```
@@ -113,6 +116,7 @@ optimizer:
 constraints:
   upper: 0.2
   stock_type_limit: 0.4
+  bond_type_floor: 0.6           # 債券總下限 60%
 universe:
   industry_list: []              # 排除產業
 risk:
@@ -127,6 +131,7 @@ optimizer:
 constraints:
   upper: 1.0
   stock_type_limit: 0.0
+  bond_type_floor: 1.0           # 債券總下限 100%
   asset_upper:
     非投資級債: 0.2
 universe:
@@ -291,6 +296,7 @@ print(xl.sheet_names)   # 確認 Sheet 名稱
 |---|---|
 | 約束條件過緊（`upper` 太小 + 資產太多） | 提高 `upper`，或減少資產數量 |
 | `stock_type_limit` 過低 | 對多數股票市場，至少設 0.3 以上 |
+| `bond_type_floor` 設得過高 | 降低 `bond_type_floor`；若債券資產少，下限不可超過可配置資產的上限總和 |
 | 某月份所有 μ 為負 | 正常現象（熊市期），系統會 fallback 等權 |
 | 保守型含 `market_list: []` 但 `stock_type_limit > 0` | 確認清空資產的同時也將 `stock_type_limit` 設為 0 |
 
@@ -493,7 +499,11 @@ elif objective == "new_objective":
     weights = ef.clean_weights()
 ```
 
+目前支援的目標函數：`sharpe`、`sortino`、`utility`、`min_variance`。
+
 並在 `ui/app.py` 的 `obj_options` 和 `obj_map` 中新增對應選項。
+
+> **注意：** 新增完目標函數後，務必也在 `apply_min_weight_floor` 前將 `w_series` 傳入，確保畸零單位後處理統一套用。
 
 ### 新增績效指標
 

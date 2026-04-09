@@ -193,6 +193,7 @@ constraints:
   lower: 0.0                     # 單一資產配置下限（0 = 不強制做空）
   upper: 0.5                     # 單一資產配置上限
   stock_type_limit: 0.7          # 股票（市場 + 產業）總權重上限
+  bond_type_floor: 0.2           # 債券（bond_list）總權重下限（積極型 CLI 預設）
 
 optimizer:
   objective: "sortino"           # 目標函數：sharpe | sortino | utility | min_variance
@@ -207,12 +208,12 @@ backtest:
 
 ### 投資人類型對應的預設設定
 
-| 投資人類型 | 目標函數 | 股票上限 | 單一資產上限 | 特殊限制 |
-|---|---|---|---|---|
-| 積極型 | Sortino | 70%（config 值） | 50%（config 值） | 無 |
-| 成長型 | Sharpe | 60% | 20% | 無 |
-| 穩健型 | Utility | 40% | 20% | 排除產業類別 |
-| 保守型 | Min Variance | 0% | 100% | 僅投資級債 + 非投資級債；非投資級債 ≤ 20% |
+| 投資人類型 | 目標函數 | 股票上限 | 債券下限 | 單一資產上限 | 特殊限制 |
+|---|---|---|---|---|---|
+| 積極型 | Sortino | 70%（config 值） | 20% | 50%（config 值） | 無 |
+| 成長型 | Sharpe | 60% | 40% | 20% | 無 |
+| 穩健型 | Utility | 40% | 60% | 20% | 排除產業類別 |
+| 保守型 | Min Variance | 0% | 100% | 100% | 僅投資級債 + 非投資級債；非投資級債 ≤ 20% |
 
 ---
 

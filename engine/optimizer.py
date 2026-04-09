@@ -6,6 +6,88 @@ from pypfopt import EfficientFrontier, EfficientSemivariance, objective_function
 
 from .constraints import build_stock_type_indices
 
+_MIN_WEIGHT = 0.01  # 畸零單位門檻：低於此值視為零
+
+
+def apply_min_weight_floor(
+    w_series: pd.Series,
+    asset_names: list[str],
+    stock_type_idx: list[int],
+    bond_type_idx: list[int],
+    config: dict,
+) -> pd.Series:
+    """
+    畸零單位後處理：
+    1. 剔除 wi < MIN_WEIGHT 的資產
+    2. 剩餘權重標準化（sum=1）
+    3. 迭代修正上限違反（個別資產上限 & 股票總上限），多餘權重按比例分配給其他資產
+    """
+    upper = float(config["constraints"]["upper"])
+    stock_limit = float(config["constraints"]["stock_type_limit"])
+    bond_floor = float(config["constraints"].get("bond_type_floor", 0.0))
+    asset_upper_map = config["constraints"].get("asset_upper", {})
+
+    w = w_series.copy()
+
+    # ── Step 1: 剔除畸零權重 ──────────────────────────────
+    dropped = w[w < _MIN_WEIGHT].index.tolist()
+    if dropped:
+        print(f"[MinWeight] 剔除 {len(dropped)} 個畸零資產：{dropped}")
+    w[w < _MIN_WEIGHT] = 0.0
+
+    # ── Step 2: 標準化 ────────────────────────────────────
+    w_sum = w.sum()
+    if w_sum <= 0:
+        print("[MinWeight][WARN] 剔除後無剩餘資產，返回原始權重")
+        return w_series
+    w = w / w_sum
+
+    # ── Step 3: 迭代修正上限違反 ──────────────────────────
+    tol = 1e-6
+    for iteration in range(30):
+        changed = False
+
+        # (A) 個別資產上限
+        for name in asset_names:
+            limit = asset_upper_map.get(name, upper)
+            if w[name] > limit + tol:
+                excess = w[name] - limit
+                w[name] = limit
+                # 分配給其他尚未到達自身上限的資產（按比例）
+                eligible = pd.Index([n for n in asset_names
+                                     if n != name and w[n] < asset_upper_map.get(n, upper) - tol])
+                eligible_sum = w[eligible].sum()
+                if eligible_sum > 0:
+                    w[eligible] += excess * w[eligible] / eligible_sum
+                else:
+                    # 所有資產都在上限，平均分配
+                    others = pd.Index([n for n in asset_names if n != name])
+                    w[others] += excess / len(others)
+                print(f"[MinWeight] 壓回上限：{name} → {limit:.2%}，多餘 {excess:.4%} 重新分配")
+                changed = True
+
+        # (B) 股票類總上限
+        stock_names = [asset_names[i] for i in stock_type_idx]
+        stock_sum = w[stock_names].sum() if stock_names else 0.0
+        if stock_sum > stock_limit + tol:
+            excess = stock_sum - stock_limit
+            # 按比例壓縮股票權重
+            for name in stock_names:
+                w[name] *= stock_limit / stock_sum
+            # 釋出的權重分配給非股票資產
+            non_stock = [n for n in asset_names if n not in stock_names]
+            non_stock_sum = w[non_stock].sum()
+            if non_stock_sum > 0:
+                for name in non_stock:
+                    w[name] += excess * w[name] / non_stock_sum
+            print(f"[MinWeight] 股票總上限超過：{stock_sum:.4%} > {stock_limit:.2%}，已修正")
+            changed = True
+
+        if not changed:
+            break
+
+    return w
+
 
 def solve_weights(
     mu: pd.Series,
@@ -40,6 +122,11 @@ def solve_weights(
     stock_type = [m.replace(" ", "_") for m in market_list] + industry_list
     stock_type_idx = build_stock_type_indices(asset_names, stock_type)
 
+    # 債券下限（bond_list 總權重）
+    bond_list = config["universe"]["bond_list"]
+    bond_type_idx = build_stock_type_indices(asset_names, bond_list)
+    bond_floor = float(config["constraints"].get("bond_type_floor", 0.0))
+
     obj = str(config["optimizer"]["objective"]).lower()
 
     # ========= Sharpe（保留） =========
@@ -47,6 +134,8 @@ def solve_weights(
     if obj == "sharpe":
         ef = EfficientFrontier(mu, sigma, weight_bounds=(lower, upper))
         ef.add_constraint(lambda w: w[stock_type_idx].sum() <= stock_limit)
+        if bond_type_idx and bond_floor > 0:
+            ef.add_constraint(lambda w: w[bond_type_idx].sum() >= bond_floor)
 
         # --- New: Individual Asset Constraints ---
         asset_upper_map = config["constraints"].get("asset_upper", {})
@@ -64,6 +153,8 @@ def solve_weights(
             # Rebuild EF since the failed solve may have corrupted state
             ef = EfficientFrontier(mu, sigma, weight_bounds=(lower, upper))
             ef.add_constraint(lambda w: w[stock_type_idx].sum() <= stock_limit)
+            if bond_type_idx and bond_floor > 0:
+                ef.add_constraint(lambda w: w[bond_type_idx].sum() >= bond_floor)
             for name, limit in asset_upper_map.items():
                 if name in asset_names:
                     idx = asset_names.index(name)
@@ -72,23 +163,15 @@ def solve_weights(
             ef.max_quadratic_utility(risk_aversion=risk_aversion)
         w = ef.clean_weights(rounding=6)
         
-        # Double Check constraints
         w_series = pd.Series(w).reindex(asset_names).fillna(0.0)
-        for name, limit in asset_upper_map.items():
-            if name in w_series.index:
-                val = w_series[name]
-                if val > limit + 0.001:
-                    print(f"[DEBUG][Sharpe] Constraint violated after clean: {name} = {val:.4f} > {limit}")
-                    w_series[name] = limit
-                    other_sum = w_series.drop(name).sum()
-                    if other_sum > 0:
-                        w_series[w_series.index != name] *= (1.0 - limit) / other_sum
-        return w_series
+        return apply_min_weight_floor(w_series, asset_names, stock_type_idx, bond_type_idx, config)
 
     # ========= Utility（保留） =========
     if obj == "utility":
         ef = EfficientFrontier(mu, sigma, weight_bounds=(lower, upper))
         ef.add_constraint(lambda w: w[stock_type_idx].sum() <= stock_limit)
+        if bond_type_idx and bond_floor > 0:
+            ef.add_constraint(lambda w: w[bond_type_idx].sum() >= bond_floor)
 
         # --- New: Individual Asset Constraints ---
         asset_upper_map = config["constraints"].get("asset_upper", {})
@@ -102,18 +185,8 @@ def solve_weights(
         ef.max_quadratic_utility(risk_aversion=risk_aversion)
         w = ef.clean_weights(rounding=6)
         
-        # Double Check constraints
         w_series = pd.Series(w).reindex(asset_names).fillna(0.0)
-        for name, limit in asset_upper_map.items():
-            if name in w_series.index:
-                val = w_series[name]
-                if val > limit + 0.001:
-                    print(f"[DEBUG][Utility] Constraint violated after clean: {name} = {val:.4f} > {limit}")
-                    w_series[name] = limit
-                    other_sum = w_series.drop(name).sum()
-                    if other_sum > 0:
-                        w_series[w_series.index != name] *= (1.0 - limit) / other_sum
-        return w_series
+        return apply_min_weight_floor(w_series, asset_names, stock_type_idx, bond_type_idx, config)
 
     # ========= Sortino（正式版：max_quadratic_utility(2)） =========
     if obj == "sortino":
@@ -125,7 +198,9 @@ def solve_weights(
             weight_bounds=(lower, upper),
         )
         es.add_constraint(lambda w: w[stock_type_idx].sum() <= stock_limit)
-        
+        if bond_type_idx and bond_floor > 0:
+            es.add_constraint(lambda w: w[bond_type_idx].sum() >= bond_floor)
+
         # --- New: Individual Asset Constraints ---
         # config["constraints"]["asset_upper"] = {"Asset_Name": 0.2, ...}
         asset_upper_map = config["constraints"].get("asset_upper", {})
@@ -153,29 +228,16 @@ def solve_weights(
         
         # 使用 pypfopt 的 clean_weights 但稍微小心
         w = es.clean_weights(rounding=6)
-        
-        # Double Check constraints
+
         w_series = pd.Series(w).reindex(asset_names).fillna(0.0)
-        for name, limit in asset_upper_map.items():
-            if name in w_series.index:
-                val = w_series[name]
-                if val > limit + 0.001: # 容忍 0.1% 誤差
-                    print(f"[DEBUG] Constraint violated after clean: {name} = {val:.4f} > {limit}")
-                    # 強制修正 (很粗暴但有效)
-                    diff = val - limit
-                    w_series[name] = limit
-                    # 把多出來的分配給其他最大的資產 (或 simply normalize)
-                    # 這裡簡單處理：除了該資產外，normalize 到 (1-limit)
-                    other_sum = w_series.drop(name).sum()
-                    if other_sum > 0:
-                        w_series[w_series.index != name] *= (1.0 - limit) / other_sum
-        
-        return w_series
+        return apply_min_weight_floor(w_series, asset_names, stock_type_idx, bond_type_idx, config)
 
     # ========= Min Variance (New) =========
     if obj == "min_variance":
         ef = EfficientFrontier(mu, sigma, weight_bounds=(lower, upper))
         ef.add_constraint(lambda w: w[stock_type_idx].sum() <= stock_limit)
+        if bond_type_idx and bond_floor > 0:
+            ef.add_constraint(lambda w: w[bond_type_idx].sum() >= bond_floor)
 
         # --- Individual Asset Constraints ---
         asset_upper_map = config["constraints"].get("asset_upper", {})
@@ -193,18 +255,8 @@ def solve_weights(
         
         ef.min_volatility()
         w = ef.clean_weights(rounding=6)
-        
-        # Double Check constraints
+
         w_series = pd.Series(w).reindex(asset_names).fillna(0.0)
-        for name, limit in asset_upper_map.items():
-            if name in w_series.index:
-                val = w_series[name]
-                if val > limit + 0.001:
-                    print(f"[DEBUG][MinVar] Constraint violated after clean: {name} = {val:.4f} > {limit}")
-                    w_series[name] = limit
-                    other_sum = w_series.drop(name).sum()
-                    if other_sum > 0:
-                        w_series[w_series.index != name] *= (1.0 - limit) / other_sum
-        return w_series
+        return apply_min_weight_floor(w_series, asset_names, stock_type_idx, bond_type_idx, config)
 
     raise ValueError("optimizer.objective must be one of: sharpe | sortino | utility | min_variance")

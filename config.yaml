@@ -37,6 +37,7 @@ constraints:
   lower: 0.0
   upper: 0.5
   stock_type_limit: 0.7                 # 股票(市場+產業)權重上限
+  bond_type_floor: 0.2                  # 債券(bond_list)總權重下限（積極型預設）
 
 optimizer:
   objective: "sortino"                  # sharpe | sortino | utility
