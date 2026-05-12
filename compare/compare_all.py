@@ -1,6 +1,10 @@
 """
 Compare 5 profiles: Conservative, Balanced, Growth, Aggressive(70%), Aggressive(80%)
 """
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 import copy
 import pandas as pd
 from engine.config import load_config
@@ -29,7 +33,7 @@ profiles = {
     },
     "成長型": {
         "constraints.upper": 0.2,
-        "constraints.stock_type_limit": 0.6,
+        "constraints.stock_type_limit": 0.55,
         "constraints.asset_upper": {},
         "optimizer.objective": "sharpe",
     },

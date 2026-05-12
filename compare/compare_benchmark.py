@@ -3,6 +3,10 @@ Analyze benchmark options for the Conservative profile.
 Current benchmark: 60% LUCRTRUU + 20% LEGATRUU + 20% LG30TRUU (all bonds)
 Test alternatives: 100% LEGATRUU, Equal weight, etc.
 """
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 import pandas as pd
 import numpy as np
 from engine.config import load_config

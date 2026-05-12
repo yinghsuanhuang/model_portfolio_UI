@@ -18,21 +18,82 @@ plt.rcParams['axes.unicode_minus'] = False
 
 # ================== 工具 ==================
 def plot_multiple(results_list, labels, rule, item):
-    fig, ax = plt.subplots(figsize=(10, 5))
+    fig, ax = plt.subplots(figsize=(14, 5.2))
 
     for res, lab in zip(results_list, labels):
         series = res[rule][item]
         ax.plot(series.index, series.values, label=lab, lw=2)
 
-    ax.legend()
+    ax.legend(fontsize=11, loc="best")
     ax.grid(alpha=0.3)
+    ax.tick_params(labelsize=10)
     fig.tight_layout()
     return fig
 
 
 # ================== UI ==================
-st.set_page_config(page_title="Model Portfolio Lab", layout="wide")
+st.set_page_config(
+    page_title="Model Portfolio Lab",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
+
+# 自訂樣式：針對桌面寬螢幕優化
+st.markdown(
+    """
+    <style>
+    /* 主內容：限制最大寬度避免在 4K 螢幕上拉太開，桌面常見 1440~1920 解析度都能看 */
+    .block-container {
+        padding-top: 1.5rem;
+        padding-bottom: 2rem;
+        padding-left: 2.5rem;
+        padding-right: 2.5rem;
+        max-width: 1600px;
+    }
+
+    /* Sidebar：加寬給中文長標籤更多空間 */
+    section[data-testid="stSidebar"] {
+        min-width: 320px;
+        max-width: 360px;
+    }
+    section[data-testid="stSidebar"] .block-container {
+        padding-top: 1rem;
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
+
+    /* 標題 */
+    h1 {font-size: 1.9rem !important; margin-bottom: 0.2rem;}
+    h2 {font-size: 1.25rem !important; margin-top: 0.5rem;}
+    h3 {font-size: 1.1rem !important;}
+
+    /* Tabs */
+    .stTabs [data-baseweb="tab-list"] {gap: 6px;}
+    .stTabs [data-baseweb="tab"] {
+        height: 44px;
+        padding: 0 22px;
+        font-size: 1rem;
+    }
+    .stTabs [aria-selected="true"] {font-weight: 600;}
+
+    /* 表格字級稍微放大 */
+    div[data-testid="stDataFrame"] {font-size: 0.95rem;}
+
+    /* Metric 卡 */
+    div[data-testid="stMetric"] {
+        background-color: #f8f9fa;
+        border: 1px solid #e9ecef;
+        border-radius: 8px;
+        padding: 12px 16px;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 st.title("Model Portfolio 策略研究平台")
+st.caption("依投資人類型自動套用約束條件，回測 Markowitz / Equal Weight / 60/40 三種策略")
+st.markdown("---")
 
 # -------- Sidebar --------
 
@@ -72,14 +133,14 @@ if profile in ["積極型投資人", "成長型投資人", "穩健型投資人",
         default_non_ig_limit = 1.0 # 預設為 1.0，表示無限制
 
     elif profile == "成長型投資人":
-        st.sidebar.info("成長型預設：\n- 股票總上限 60%\n- 單一股票/產業上限 20%\n- 債券下限 40%")
+        st.sidebar.info("成長型預設：\n- 股票總上限 55%\n- 單一股票/產業上限 20%\n- 債券下限 40%")
 
         default_rule_idx = 1 # Q
         default_obj_idx = 1 # sharpe (index 1 of ["sortino", "sharpe", "utility", "min_variance"])
         default_upper = 0.2 # 單一資產上限 20%（含股票、產業）
 
-        # 成長型：股票總上限 60%
-        default_stock_limit = 0.6
+        # 成長型：股票總上限 55%
+        default_stock_limit = 0.55
 
         # 成長型：債券下限 40%
         default_bond_floor = 0.4
@@ -236,6 +297,7 @@ if run_btn:
 
     # ---- Tab1 ----
     with tab1:
+        st.subheader("策略績效對比表")
         st.dataframe(
             df_stats.style.format({
                 "Total Return": "{:.2%}",
@@ -246,38 +308,71 @@ if run_btn:
                 "Calmar": "{:.2f}",
             }),
             width="stretch",
+            hide_index=True,
         )
-
-
 
     # ---- Tab2 ----
     with tab2:
+        st.subheader("淨值曲線 (NAV)")
         fig1 = plot_multiple(results_list, name_list, rule, "nav")
-        st.pyplot(fig1)
+        st.pyplot(fig1, use_container_width=True)
 
+        st.markdown("---")
+        st.subheader("週期報酬率 (Returns)")
         fig2 = plot_multiple(results_list, name_list, rule, "returns")
-        st.pyplot(fig2)
+        st.pyplot(fig2, use_container_width=True)
 
     # ---- Tab3 ----
     with tab3:
         # 改用 Target Weights (Model Weights) 而不是 Drifted Weights
         # weights_df 是每個月產生的「建議配置」，不管是否有交易
         # 用這個來檢查是否符合 constraint 最準確
-        
+
         weights_all = weights_df
         if not weights_all.empty:
-            latest = weights_all.iloc[-1].sort_values(ascending=False)
+            latest = weights_all.iloc[-1]
 
+            # ===== 股債比 =====
+            # 注意：return_model 會把 market_list 的空格換成底線（"SPX Index" -> "SPX_Index"）
+            # 所以這裡比對前要做相同 normalize；industry / bond 名稱沒被改動
+            market_assets = [
+                m.replace(" ", "_") for m in (cfg["universe"].get("market_list") or [])
+            ]
+            industry_assets = cfg["universe"].get("industry_list") or []
+            bond_assets = cfg["universe"].get("bond_list") or []
+
+            stock_cols = [c for c in latest.index if c in market_assets + industry_assets]
+            bond_cols = [c for c in latest.index if c in bond_assets]
+
+            stock_weight = float(latest[stock_cols].sum()) if stock_cols else 0.0
+            bond_weight = float(latest[bond_cols].sum()) if bond_cols else 0.0
+
+            ratio_df = pd.DataFrame(
+                {"Weight": [stock_weight, bond_weight]},
+                index=["股票 (Stocks)", "債券 (Bonds)"],
+            )
+            ratio_df.index.name = "資產類別"
+
+            st.subheader("股債配置比例")
             st.dataframe(
-                latest.to_frame("Weight").style.format("{:.2%}"),
-                use_container_width=True,
+                ratio_df.style.format({"Weight": "{:.2%}"}),
+                width="stretch",
             )
 
-            # Spacer removed
+            st.markdown("---")
+
+            # ===== 各資產權重明細 =====
+            st.subheader("各資產權重明細")
+            latest_sorted = latest.sort_values(ascending=False)
+            st.dataframe(
+                latest_sorted.to_frame("Weight").style.format("{:.2%}"),
+                width="stretch",
+            )
+
             with st.expander("點擊展開查看全部歷史權重 (Expand Full Weight History)"):
                 st.dataframe(
                     weights_all.style.format("{:.2%}"),
-                    use_container_width=True,
+                    width="stretch",
                 )
         else:
             st.warning("No weights data available.")
