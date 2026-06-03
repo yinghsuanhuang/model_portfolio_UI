@@ -4,14 +4,14 @@ project:
 
 paths:
   data_dir: data
-  expected_return_xlsx: "指數預期報酬率-1.xlsx"
-  module_return_xlsx: "模組報酬率.xlsx"
+  saa_raw_xlsx: "SAA_RawData.xlsx"
+  taa_raw_xlsx: "TAA_RawData.xlsx"
 
 universe:
   market_list: ["SPX Index","SXXP Index","NKY Index","MXMS Index","SHCOMP Index","TWSE Index"]
   industry_list: ["科技"]
   bond_list: ["投資級債","非投資級債","新興市場債"]
-  benchmark_cols: ["LUCRTRUU_Index","LEGATRUU_Index","LG30TRUU_Index"]
+  benchmark_cols: ["MXWO_Index","LEGATRUU_Index","LG30TRUU_Index"]
 
 dates:
   start_date: "2010-12-31"              # 建構投組的起點（在此前一月末完成建構）
@@ -48,3 +48,21 @@ backtest:
   starting_capital: 1.0
   trading_cost_bps: 0.0
   rf_annual: 0.0
+
+taa:
+  enabled: true
+  # 各風險屬性「股債比」最大調整幅度 X（保守型 0 = 不啟用 TAA）
+  profile_max_adjust:
+    積極型投資人: 0.10
+    成長型投資人: 0.08
+    穩健型投資人: 0.06
+    保守型投資人: 0.00
+  nfp_threshold: 50                # 非農新增就業門檻（千人）；可由 UI 覆寫
+  pmi_threshold: 50                 # ISM 美國綜合PMI 榮枯線（NAPMALL Index）
+  # 評價面（ERP）對 X 的乘數：依加/減碼方向 × ERP 分數查表
+  valuation_multipliers:
+    plus_1: 1.00                   # ERP +1（便宜）
+    zero: 0.75                     # ERP 0（正常）
+    minus_1: 0.50                  # ERP -1（昂貴）
+  add_target: "SPX_Index"          # 加碼去處
+  reduce_target: "投資級債"         # 減碼釋出去處（LEGATRUU Index）

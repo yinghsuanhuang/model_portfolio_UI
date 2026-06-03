@@ -9,3 +9,12 @@ __pycache__/
 .venv/
 venv/
 outputs/
+
+# 機密財務資料（不納入版控）
+data/*.xlsx
+
+# 回測產出與暫存
+.last_run.pkl
+report/*.pdf
+report/_preview.html
+report/_imgs/
