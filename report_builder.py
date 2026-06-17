@@ -49,7 +49,7 @@ _ASSET_CAT = {
 }
 _CAT_ORDER = {"地區": 0, "產業": 1, "資產": 2}
 
-C_UP, C_DOWN, C_FLAT = "#1a7f37", "#cf222e", "#8a8f98"
+C_UP, C_DOWN, C_FLAT = "#005BAC", "#ED6C00", "#8a8f98"  # 凱基藍=正/加碼、橘=負/減碼
 C_INK, C_ACCENT, C_PAPER = "#1a1a1a", "#0f4c5c", "#ffffff"
 
 STRAT_LABEL = {"Markowitz": "SAA 基準", "SAA + TAA": "SAA+TAA", "60/40": "股六債四基準"}
@@ -165,12 +165,12 @@ def _fig_donut(saa_latest, taa_latest, cfg):
     # Right donut: TAA — delta portion uses a distinct highlight color
     if abs(delta) > 1e-3:
         if delta > 0:
-            # Added stocks: base stock (dark) + TAA delta (green) + bonds
+            # Added stocks: base stock (dark) + TAA delta (blue) + bonds
             taa_labels = ["股票", f"TAA加碼{delta:.0%}", "固定收益"]
             taa_values = [saa_s, delta, taa_b]
             taa_colors = [STOCK_C, C_UP, BOND_C]
         else:
-            # Reduced stocks: remaining stocks + base bonds + TAA delta (red)
+            # Reduced stocks: remaining stocks + base bonds + TAA delta (orange)
             taa_labels = ["股票", "固定收益", f"TAA減碼{abs(delta):.0%}"]
             taa_values = [taa_s, saa_b, abs(delta)]
             taa_colors = [STOCK_C, BOND_C, C_DOWN]
@@ -218,7 +218,7 @@ def _scorecard_html(last, mrow, mas):
 
     def badge(score, text):
         c  = C_UP if score > 0 else C_DOWN if score < 0 else C_FLAT
-        bg = "#e8f5e9" if score > 0 else "#fdecea" if score < 0 else "#f3f4f6"
+        bg = "#e7f0f9" if score > 0 else "#fdf0e6" if score < 0 else "#f3f4f6"
         return (f'<span style="color:{c};background:{bg};padding:2px 8px;'
                 f'border-radius:4px;font-size:.8rem;font-weight:600;white-space:nowrap;">'
                 f'{text}</span>')
@@ -423,7 +423,7 @@ def _params_html(cfg, X, rule, signals_df):
 # ============================================================
 
 def _build_summary_data(last, results_list, name_list, rule, cfg, profile, X,
-                        saa_latest, taa_latest) -> dict:
+                        saa_latest, taa_latest, commentary=None) -> dict:
     s_cols, b_cols = _buckets(cfg, saa_latest.index)
     saa_stock = float(saa_latest[s_cols].sum())
     taa_stock = float(taa_latest[s_cols].sum())
@@ -445,6 +445,7 @@ def _build_summary_data(last, results_list, name_list, rule, cfg, profile, X,
         "taa_stock": taa_stock,
         "stock_delta": taa_stock - saa_stock,
         "perf": perf,
+        "commentary": commentary or {},
     }
 
 
@@ -452,8 +453,6 @@ def _build_summary_prompt(sd: dict) -> str:
     direction = sd["direction"]
     delta_x = sd["delta_x"]
     saa_s, taa_s = sd["saa_stock"], sd["taa_stock"]
-    taa_p = sd["perf"].get("SAA + TAA", {})
-    saa_p = sd["perf"].get("Markowitz", {})
 
     dir_word = "加碼" if direction > 0 else "減碼" if direction < 0 else "維持"
     erp_word = {
@@ -462,31 +461,33 @@ def _build_summary_prompt(sd: dict) -> str:
     }.get(sd["erp_score"], "—")
     mkt_word = "高於" if sd["market_above_10MA"] else "低於"
 
-    def _f(v, fmt=".2%"):
-        return f"{v:{fmt}}" if not math.isnan(v) else "N/A"
+    commentary = sd.get("commentary") or {}
+    commentary_block = (
+        "\n".join(f"【{topic}】{body}" for topic, body in commentary.items())
+        if commentary else "（本期無月報文字，請僅依模型結論撰寫。）"
+    )
 
     return (
-        f"你是一位專業投資組合策略師，請根據以下戰術資產配置（TAA）分析資料，"
-        f"以繁體中文撰寫精簡策略摘要，供{sd['profile']}閱讀。\n\n"
-        f"要求：約 200～250 字，3 個自然段落，不要標題或項目符號；"
-        f"語氣客觀專業，適當提示潛在風險。"
-        f"第一段：當期決策與總體面三因子評估。"
-        f"第二段：市場面、評價面，及配置調整結果。"
-        f"第三段：回顧回測績效，並提出注意事項。\n\n"
-        f"【本期資料（{sd['date']}）】\n"
-        f"決策：{dir_word}，ΔX = {delta_x:+.1%}\n"
-        f"總體分數：{sd['macro_score']:+d}（PMI {sd['pmi_score']:+d}、NFP {sd['nfp_score']:+d}、Fed {sd['fed_score']:+d}）\n"
+        f"你是一位專業金融市場研究員。請整合「市場月報觀點」與「本期量化模型結論」，"
+        f"以繁體中文撰寫一段專業金融市場分析，供{sd['profile']}閱讀。\n\n"
+        f"寫作要求：\n"
+        f"1. 須具備邏輯推演：原因 → 影響 → 市場結果。\n"
+        f"2. 風格偏研究報告，語氣中性、專業。\n"
+        f"3. 避免贅詞，句子精簡。\n"
+        f"4. 字數嚴格控制在 120～150 字（中文字計）。\n"
+        f"5. 結尾須包含市場影響結論，涵蓋匯率、股市走勢與『債市看法』；"
+        f"債市部分須給出債券佈局觀點（例如偏好中短債或非投等債、存續期間取捨），"
+        f"而非僅敘述利率水準。\n"
+        f"6. 輸出單一段落，不要標題、項目符號、前言或後記。\n\n"
+        f"【市場月報觀點】\n{commentary_block}\n\n"
+        f"【本期量化模型結論（{sd['date']}）】\n"
+        f"決策：{dir_word}股票，ΔX = {delta_x:+.1%}\n"
+        f"總體三因子得分：{sd['macro_score']:+d}"
+        f"（PMI {sd['pmi_score']:+d}、NFP {sd['nfp_score']:+d}、Fed {sd['fed_score']:+d}）\n"
         f"市場面：S&P 500 {mkt_word} 200 日均線\n"
         f"評價面：ERP {erp_word}\n"
         f"配置：股票 {saa_s:.1%} → {taa_s:.1%}（Δ {taa_s - saa_s:+.1%}）\n\n"
-        f"【回測績效】\n"
-        f"TAA：CAGR {_f(taa_p.get('CAGR', float('nan')))}  "
-        f"Sharpe {_f(taa_p.get('Sharpe', float('nan')), '.2f')}  "
-        f"MDD {_f(taa_p.get('max_drawdown', float('nan')))}\n"
-        f"SAA：CAGR {_f(saa_p.get('CAGR', float('nan')))}  "
-        f"Sharpe {_f(saa_p.get('Sharpe', float('nan')), '.2f')}  "
-        f"MDD {_f(saa_p.get('max_drawdown', float('nan')))}\n\n"
-        f"請直接輸出正文段落，不要前言或後記："
+        f"請直接輸出該段分析："
     )
 
 
@@ -719,8 +720,13 @@ def build_html_report(run_data: dict, rule: str, ai_provider: str = "nlg") -> st
         "sonnet": "Claude Sonnet 4.6", "opus": "Claude Opus 4.8",
     }
     _ai_label = _ai_labels.get(ai_provider, ai_provider)
+    _commentary = taa_data.get("commentary")
+    if not _commentary and taa_data.get("taa_path"):
+        # 舊版快取（.last_run.pkl）可能未含 commentary，改由原始 Excel 補讀
+        from engine.data_loader import load_monthly_commentary
+        _commentary = load_monthly_commentary(taa_data["taa_path"])
     _sd = _build_summary_data(last, results_list, name_list, rule, cfg, profile,
-                              X, saa_latest, taa_latest)
+                              X, saa_latest, taa_latest, commentary=_commentary)
     if ai_provider == "gemini":
         _summary_body = generate_summary_gemini(_sd)
     elif ai_provider == "sonnet":

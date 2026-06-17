@@ -24,7 +24,9 @@ with open(CACHE, "rb") as f:
     run_data = pickle.load(f)
 
 from report_builder import build_html_report
-html = build_html_report(run_data, rule)
+# 預設用 Gemini：依「月報文字」分頁 + 本期模型結論生成策略摘要
+ai_provider = sys.argv[2] if len(sys.argv) > 2 else "gemini"
+html = build_html_report(run_data, rule, ai_provider=ai_provider)
 
 out = ROOT / "report" / "_preview.html"
 out.write_text(html, encoding="utf-8")

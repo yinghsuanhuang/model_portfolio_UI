@@ -49,16 +49,16 @@ from engine.taa import build_taa_weights, compute_factor_scores
 # ─────────────────────────────────────────
 C_SAA   = "#1f77b4"
 C_TAA   = "#ff7f0e"
-C_UP    = "#1a7f37"
-C_DOWN  = "#cf222e"
+C_UP    = "#005BAC"   # 正/加碼（凱基藍）
+C_DOWN  = "#ED6C00"   # 負/減碼（凱基橘）
 C_FLAT  = "#9aa0a6"
 C_HDR   = "#1e50a0"
 
 PROFILE_COLORS = {
-    "積極型投資人": "#d62728",
+    "積極型投資人": "#6c757d",   # 原紅 → 灰（避免漲跌語意）
     "成長型投資人": "#ff7f0e",
     "穩健型投資人": "#1f77b4",
-    "保守型投資人": "#2ca02c",
+    "保守型投資人": "#7e57c2",   # 原綠 → 紫（避免漲跌語意）
 }
 
 PROFILE_CONFIGS = {
@@ -446,7 +446,7 @@ def page_rolling_sharpe(pdf, profile_results, page_num):
         ax.plot(rs.index, rs.values, color=PROFILE_COLORS[profile],
                 lw=1.8, label=PROFILE_CONFIGS[profile]["label"])
     ax.axhline(0, color="black", lw=0.8, ls="--")
-    ax.axhline(1, color="green", lw=0.6, ls=":", alpha=0.5)
+    ax.axhline(1, color="#999999", lw=0.6, ls=":", alpha=0.5)
     ax.set_ylabel("Sharpe Ratio", fontsize=10)
     ax.legend(fontsize=9, ncol=2)
     ax.grid(alpha=0.3)
@@ -473,7 +473,7 @@ def page_taa_data_coverage(pdf, taa_data, page_num):
 
     ax2 = fig.add_subplot(gs[1])
     ax2.plot(macro.index, macro["nfp"], label="NFP 非農就業（千人）", color="#ff7f0e", lw=1.8)
-    ax2.plot(macro.index, macro["fdtr"], label="FDTR Fed基準利率 (%)", color="#2ca02c", lw=2)
+    ax2.plot(macro.index, macro["fdtr"], label="FDTR Fed基準利率 (%)", color="#7e57c2", lw=2)
     ax2.axhline(0, color="gray", lw=0.5, ls="--")
     ax2.legend(fontsize=7.5)
     ax2.set_title("總體面 — NFP & Fed利率", fontsize=9, fontweight="bold")
@@ -532,7 +532,7 @@ def page_taa_signals(pdf, signals_df, profile, page_num):
     fed_s = signals_df["fed_score"]
     ax3.step(signals_df.index, pmi_s, label="PMI分", color="#1f77b4", lw=1.5, where="post")
     ax3.step(signals_df.index, nfp_s, label="NFP分", color="#ff7f0e", lw=1.5, where="post")
-    ax3.step(signals_df.index, fed_s, label="Fed分", color="#2ca02c", lw=1.5, where="post")
+    ax3.step(signals_df.index, fed_s, label="Fed分", color="#7e57c2", lw=1.5, where="post")
     ax3.step(signals_df.index, erp,   label="ERP分", color="#9467bd", lw=1.5, where="post", ls="--")
     ax3_twin = ax3.twinx()
     ax3_twin.fill_between(signals_df.index, above * 0.8, alpha=0.1,

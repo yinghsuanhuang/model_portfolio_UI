@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 
 # ── CLI argument: --ai-provider nlg|gemini|sonnet|opus ──────
 _parser = argparse.ArgumentParser(add_help=False)
-_parser.add_argument("--ai-provider", default="nlg",
+_parser.add_argument("--ai-provider", default="gemini",
                      choices=["nlg", "gemini", "sonnet", "opus"])
 _cli_args, _ = _parser.parse_known_args()
 AI_PROVIDER = _cli_args.ai_provider
@@ -60,8 +60,8 @@ def _get_return_date_range(path_str: str) -> tuple:
 plt.rcParams['axes.unicode_minus'] = False
 
 # ====== 色彩 token（漲跌/策略一致配色）======
-C_UP = "#1a7f37"      # 加碼 / 正
-C_DOWN = "#cf222e"    # 減碼 / 負
+C_UP = "#005BAC"      # 加碼 / 正（凱基藍）
+C_DOWN = "#ED6C00"    # 減碼 / 負（凱基橘）
 C_FLAT = "#9aa0a6"    # 中性
 C_MEETING = "#b7791f" # 會議討論（琥珀）
 
@@ -70,8 +70,8 @@ C_MEETING = "#b7791f" # 會議討論（琥珀）
 STRAT_COLORS = {
     "Markowitz": "#1f77b4",      # 藍
     "SAA + TAA": "#ff7f0e",      # 橘（虛線）
-    "Equal Weight": "#2ca02c",   # 綠
-    "60/40": "#d62728",          # 紅
+    "Equal Weight": "#7e57c2",   # 紫（原綠，避免漲跌語意）
+    "60/40": "#6c757d",          # 灰（原紅，避免漲跌語意）
 }
 
 

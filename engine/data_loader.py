@@ -85,6 +85,37 @@ def _find_sheet(xl: pd.ExcelFile, *candidates: str) -> str:
     )
 
 
+def load_monthly_commentary(taa_path: str | Path) -> dict[str, str]:
+    """由 TAA_RawData.xlsx 路徑讀取「月報文字」分頁（供報告端在快取缺漏時補讀）。"""
+    taa_path = Path(taa_path)
+    if not taa_path.exists():
+        return {}
+    return _load_monthly_commentary(pd.ExcelFile(taa_path), taa_path)
+
+
+def _load_monthly_commentary(xl: pd.ExcelFile, taa_path: Path) -> dict[str, str]:
+    """讀取「月報文字」分頁，回傳 {主題: 內文} 的有序字典。
+
+    分頁格式為兩欄（主題 / 內文），每列一個主題（如美國經濟、美國股市、
+    殖利率/Fed、債券看法、匯率）。分頁不存在時回傳空字典（不影響回測）。
+    """
+    try:
+        sheet = _find_sheet(xl, "月報文字")
+    except KeyError:
+        return {}
+    df = pd.read_excel(taa_path, sheet_name=sheet, header=None)
+    commentary: dict[str, str] = {}
+    for _, row in df.iterrows():
+        topic = row.iloc[0]
+        body = row.iloc[1] if len(row) > 1 else None
+        if pd.isna(topic) or pd.isna(body):
+            continue
+        topic, body = str(topic).strip(), str(body).strip()
+        if topic and body:
+            commentary[topic] = body
+    return commentary
+
+
 # ============================================================
 # 對外 API
 # ============================================================
@@ -234,11 +265,15 @@ def load_taa_data(config: dict, override_path: str | Path | None = None) -> dict
     val = val[["erp", "sigma_minus1", "sigma_plus1"]]
     val = _to_monthly(val)
 
+    # ── 月報文字（市場觀點，用於 AI 摘要；缺漏不影響回測）──
+    commentary = _load_monthly_commentary(xl, taa_path)
+
     return {
         "taa_path": taa_path,
         "macro": macro,
         "market": market,
         "valuation": val,
+        "commentary": commentary,
     }
 
 
