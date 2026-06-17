@@ -16,7 +16,9 @@ universe:
 dates:
   start_date: "2010-12-31"              # 建構投組的起點（在此前一月末完成建構）
   backtest_start: "2012-01-31"
-  backtest_end: "2025-10-31"
+  # backtest_end 可填具體月底（如 "2025-10-31"）；填 "auto" 則自動偵測
+  # SAA_RawData.xlsx 之 RETURN 工作表最新月份，更新 Excel 後免改此處。
+  backtest_end: "auto"
 
 schedule:
   T_months: 180                         # 12*15
