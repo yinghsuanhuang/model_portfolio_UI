@@ -1,0 +1,12 @@
+# 統一換行：一般文字檔在 repo 內以 LF 儲存，checkout 時依平台正規化。
+* text=auto eol=lf
+
+# Windows 批次檔必須是 CRLF，否則雙擊可能異常。
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# 二進位檔不做換行轉換。
+*.xlsx binary
+*.pdf  binary
+*.pkl  binary
+*.png  binary

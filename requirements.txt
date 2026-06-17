@@ -1,15 +1,17 @@
-pandas>=2.0
-numpy>=1.24
-openpyxl>=3.1
-matplotlib>=3.7
-statsmodels>=0.14
-scikit-learn>=1.3
-PyPortfolioOpt>=1.5
-cvxpy>=1.4
-pyyaml>=6.0
-requests>=2.28
-streamlit>=1.33
-plotly>=5.0
-anthropic>=0.40
-google-generativeai>=0.8
-python-dotenv>=1.0
+# 鎖定版本（精確 ==）以確保 Mac 開發與 Windows 部署環境一致。
+# 這些是目前已驗證可正常運作的版本（Python 3.10/3.11 皆有對應 wheel）。
+pandas==2.3.3
+numpy==2.2.6
+openpyxl==3.1.5
+matplotlib==3.10.9
+statsmodels==0.14.6
+scikit-learn==1.7.2
+PyPortfolioOpt==1.6.0
+cvxpy==1.7.5
+pyyaml==6.0.3
+requests==2.34.2
+streamlit==1.58.0
+plotly==6.7.0
+anthropic==0.105.2
+google-generativeai==0.8.6
+python-dotenv==1.2.2
