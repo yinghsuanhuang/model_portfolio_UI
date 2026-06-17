@@ -6,6 +6,7 @@
 
 ## 目錄
 
+0. [系統總覽](#0-系統總覽)
 1. [日常資料更新流程](#1-日常資料更新流程)
 2. [回測參數調整指引](#2-回測參數調整指引)
 3. [TAA 訊號參數調整](#3-taa-訊號參數調整)
@@ -14,6 +15,104 @@
 6. [常見錯誤與排查](#6-常見錯誤與排查)
 7. [輸出結果驗證](#7-輸出結果驗證)
 8. [環境維護](#8-環境維護)
+
+---
+
+## 0. 系統總覽
+
+> 這一章用最白話的方式講清楚：系統在做什麼、每天怎麼開、每個月要做什麼。
+> **不需要會寫程式** —— 全部操作都在 **網頁畫面（UI）** 上點一點就完成。
+
+### 0.1 這個系統在做什麼？
+
+它幫我們算出**「這個月各類資產（股票、債券）該配置多少比例」**，並回測這套配置過去十幾年的表現。
+
+它分成兩層：
+
+| 層次 | 全名 | 白話解釋 |
+|---|---|---|
+| **SAA** | 戰略資產配置 | 長期的「基本盤」配置，根據各資產的預期報酬與風險算出最佳比例 |
+| **TAA** | 戰術資產配置 | 在基本盤之上，依據景氣（PMI、就業、估值）短期微調股債比 |
+
+### 0.2 怎麼把系統打開（每天開機後就做這件事）
+
+**直接用滑鼠「雙擊」資料夾裡的 `start.bat`** 就會啟動。
+
+1. 雙擊 `start.bat`
+2. 會跳出一個黑色視窗（這是正常的，**不要關它**，關了系統就停了）
+3. 稍等幾秒，瀏覽器會自動打開操作畫面（網址 `http://localhost:8501`）
+4. 開始操作（見 [0.3](#03-每個月要做的事每月一次)）
+5. 今天用完想關閉系統：把那個黑色視窗關掉即可
+
+> **就這樣。** 每天開機後雙擊 `start.bat`，等畫面出來就能用。
+> 系統是跑在這台電腦自己身上的，不會連到外網。
+
+<details>
+<summary>進階：如果想用打字的方式啟動（或在 Mac 上）</summary>
+
+Windows 命令提示字元（開始選單搜尋 `cmd`）：
+```bat
+cd C:\KGI\model_portfolio
+venv\Scripts\activate
+streamlit run ui/app.py
+```
+Mac／Linux 終端機：
+```bash
+cd /path/to/model_portfolio
+source venv/bin/activate
+streamlit run ui/app.py
+```
+</details>
+
+### 0.3 每個月要做的事（每月一次）
+
+每個月就是「換上最新資料、重算一次、產出報告」，全部在畫面上完成：
+
+```
+① 在 Excel 裡，把兩個資料檔補上最新月份的數字並存檔
+   （SAA_RawData.xlsx：股票/債券；TAA_RawData.xlsx：景氣指標）
+        ↓
+② 雙擊 start.bat 打開系統（見 0.2）
+        ↓
+③ 在左側「資料來源」把剛存好的兩個 Excel 上傳上去
+   （畫面有「上傳 SAA_RawData」「上傳 TAA_RawData」兩個按鈕）
+        ↓
+④ 選「投資人類型」，按「▶️ Run Backtest」
+        ↓
+⑤ 看結果是否合理（績效、權重圖），再按「生成報告」產出 HTML 策略報告
+```
+
+- 第①步要補哪些欄位 → 見 [1.1](#11-更新-saa_rawdataxlsx每月底)、[1.2](#12-更新-taa_rawdataxlsx每月底)
+- **不確定數字對不對？** → 對照 [7.2 合理範圍](#72-績效合理性參考範圍2012-2025-回測期間) 看看績效有沒有落在正常區間
+
+> **小提醒：** 上傳檔案是「這次執行用一下」，不會覆蓋電腦裡的原檔。若想讓上傳的檔案變成之後的預設，再把它存回 `data/` 資料夾蓋掉舊檔即可。
+
+### 0.4 「我想改某個設定，要去哪裡？」
+
+| 我想做的事 | 去哪裡做 |
+|---|---|
+| 換投資人類型（積極/成長/穩健/保守） | 畫面左側下拉選單 |
+| 微調股債比上下限、單一資產上限 | 畫面左側「進階參數設定」拖拉桿即可 |
+| 改 TAA 調整幅度或景氣門檻 | 畫面上的「TAA 設定」面板 |
+| 改再平衡頻率（月/季/年） | 畫面左側選單（說明見 [2.3](#23-再平衡頻率選擇指引)） |
+| 更新本月資料 | 在 Excel 改好後上傳（見 [0.3](#03-每個月要做的事每月一次)） |
+| 回測要不要自動抓最新月 | 系統預設就會自動抓最新月，通常不用動 |
+| 結果怪怪的 / 跳出錯誤 | 見 [0.5](#05-遇到狀況怎麼辦) |
+
+> **重點：** 上面這些日常調整**全部在畫面上點一點就好**，按一次 `Run Backtest` 就重算，不會改壞任何東西，放心試。
+>
+> 至於「新增一檔新的股票市場或債券」「改報告版型或計算邏輯」這類**屬於程式設定，日常維運用不到**；真的需要時，相關說明放在 [第 4 章](#4-新增--移除資產) 與 [附錄](#附錄程式碼修改指引)。
+
+### 0.5 遇到狀況怎麼辦
+
+| 狀況 | 先這樣做 |
+|---|---|
+| 畫面顯示舊結果、沒更新 | 點瀏覽器上方「⟳」重新整理；或關掉黑視窗、重新雙擊 `start.bat` |
+| 跳出紅色錯誤訊息 | 把整段紅字**截圖保留**，照 [第 6 章](#6-常見錯誤與排查) 找對應狀況；多數是資料沒補齊或檔名不對 |
+| 數字看起來不合理 | 對照 [7.2 合理範圍](#72-績效合理性參考範圍2012-2025-回測期間)；常見原因是某個月資料漏填 |
+| 雙擊 `start.bat` 跳出「找不到 venv」 | 先雙擊 `install.bat` 完成首次安裝（只需做一次），詳見 [8.2](#82-虛擬環境重建) |
+
+> ⚠️ **`engine`、`ui` 這些資料夾裡的檔案，以及 `report_builder.py`，是程式本體，平常不要去動它。** 想調整就走畫面或 `config.yaml`，這樣永遠不會把系統弄壞。
 
 ---
 
@@ -28,15 +127,16 @@
 1. 在各股票指數工作表（SPX INDEX、SXXP INDEX 等）新增最新月底列，補齊 `Price`、`近12個月每股盈餘`、`股利率12個月殖利率-毛額`、`BEst本益比` 欄位
 2. 在 RETURN 工作表新增最新月底列，補齊各資產月報酬率及債券 YTM/Duration 欄位
 3. 在 MXWO_LEGATRUU_LG30TRUU INDEX 工作表新增 Benchmark 月底收盤
-4. 存檔後執行資料品質檢查：
+4. 存檔後執行一次完整回測驗證資料（會載入所有工作表，缺漏或 NaN 會在此報錯）：
    ```bash
-   python debug_data_quality.py
+   python main.py
    ```
-5. 確認無 NaN 警告後，更新 `config.yaml` 的 `backtest_end`：
+5. 確認無 NaN 警告即可。**`config.yaml` 的 `backtest_end` 不需手動更新**——預設為 `"auto"`，系統會自動偵測 RETURN 工作表的最新月份作為回測終點：
    ```yaml
    dates:
-     backtest_end: "2025-11-30"   # 改為最新月份末
+     backtest_end: "auto"   # 自動抓 RETURN 工作表最新月份；如需鎖定特定區間才改具體日期（如 "2025-11-30"）
    ```
+   > 自動偵測以 **RETURN 工作表**最新月份為準。請確保步驟 1～3 各工作表都更新到同一個月底；若 RETURN 比其他工作表超前（如 RETURN 到 11 月、股票指數只到 10 月），回測最後一個月會誤用前一個月的資料，務必同步更新。
 
 ### 1.2 更新 TAA_RawData.xlsx（每月底）
 
@@ -47,7 +147,8 @@
 1. **總體面因子**工作表：新增最新月底列，補齊 `NAPMALL Index`（PMI）、`NFP TCH Index`（非農就業千人）、`FDTR Index`（聯邦基金利率）
 2. **市場面因子**工作表：補齊最新日期的 SPX 收盤價與 200 日均線（可日頻，系統自動取月底）
 3. **評價面因子**工作表：補齊最新日期的 ERP 價差、`AVG+1XSIGMA`、`AVG-1XSIGMA`
-4. 存檔後，在 UI 側邊欄上傳新檔或重啟 Streamlit 驗證訊號是否正確更新
+4. **月報文字**工作表（選用，但建議）：兩欄（主題／內文），逐列填入當月市場觀點，主題如「美國經濟」「美國股市」「殖利率/Fed」「債券看法」「匯率」。此分頁是報告中「AI 策略摘要」的素材來源——系統會整合本期模型結論與這些文字，產出一段研究報告風格的市場分析。**留空也不影響回測**，但摘要會退回較簡略的規則式版本。
+5. 存檔後，在 UI 側邊欄上傳新檔或重啟 Streamlit 驗證訊號是否正確更新
 
 **CSV 歷史補充（可選）：**
 
@@ -214,9 +315,9 @@ X 值越大，TAA 對 SAA 的影響越強。建議參考歷史回測中 `taa_sig
        - "SPX Index"
        - "NEW_INDEX"    # 新增的 Bloomberg Ticker
    ```
-3. 執行測試：
+3. 執行測試（完整回測，確認新資產資料可正常載入）：
    ```bash
-   python debug_data_quality.py
+   python main.py
    ```
 
 ### 4.2 新增債券類型
@@ -296,9 +397,9 @@ print(f"meeting_flag 觸發次數：{sig['meeting_flag'].sum()}")
 
 ### 5.4 資料品質檢查清單
 
-每次更新資料後執行：
+每次更新資料後執行一次完整回測（成功跑完即代表資料載入無誤）：
 ```bash
-python debug_data_quality.py
+python main.py
 ```
 
 手動確認項目：
@@ -439,7 +540,7 @@ if os.path.exists("outputs/taa_signals.csv"):
     print(f"✅ TAA 訊號：{(sig['delta_x'] != 0).sum()}/{len(sig)} 個月有調整")
 ```
 
-### 7.2 績效合理性參考範圍（2012–2025 回測期間）
+### 7.2 績效合理性參考範圍（2012-2025 回測期間）
 
 | 指標 | 需確認（偏低） | 合理範圍 | 需確認（偏高） |
 |---|---|---|---|
@@ -456,8 +557,8 @@ if os.path.exists("outputs/taa_signals.csv"):
 ### 8.1 定期更新套件
 
 建議每季確認版本：
-```bash
-pip list | grep -E "pandas|numpy|PyPortfolioOpt|cvxpy|streamlit"
+```bat
+pip list | findstr "pandas numpy PyPortfolioOpt cvxpy streamlit"
 ```
 
 升級（注意可能有 breaking changes）：
@@ -467,18 +568,24 @@ pip install --upgrade pandas numpy PyPortfolioOpt cvxpy streamlit
 
 ### 8.2 虛擬環境重建
 
-若環境損壞或需在新機器部署：
-```bash
-rm -rf venv
+> **⚠️ 部署到新機器（如從 Mac 換到 Windows）必做：** `venv` 資料夾不能跨作業系統或跨電腦直接複製，必須在新機器上重建。
+
+**最簡單（Windows）：直接雙擊 `install.bat`** —— 它會自動建立 venv、安裝套件，並檢查 `.env` 與 `data/` 是否就緒。完成後日後啟動只要雙擊 `start.bat`。
+
+若要手動重建，Windows（命令提示字元）：
+```bat
+rmdir /s /q venv
 python -m venv venv
-source venv/bin/activate
+venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
 更新 `requirements.txt`（加入新套件後）：
-```bash
-pip freeze | grep -v " @ " > requirements.txt
+```bat
+pip freeze | findstr /V /C:" @ " > requirements.txt
 ```
+
+> **Mac／Linux** 對應指令：`rm -rf venv` → `python -m venv venv` → `source venv/bin/activate` → `pip install -r requirements.txt`；更新清單用 `pip freeze | grep -v " @ " > requirements.txt`。
 
 ### 8.3 Git 版控規範
 
@@ -495,6 +602,7 @@ pip freeze | grep -v " @ " > requirements.txt
 - `main.py`、`report_builder.py`、`preview_report.py`
 - `requirements.txt`
 - `README.md`、`OPERATIONS.md`
+- `start.bat`（Windows 一鍵啟動捷徑）
 
 ### 8.4 config.yaml 版本管理建議
 

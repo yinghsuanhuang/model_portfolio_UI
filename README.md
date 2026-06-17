@@ -28,6 +28,7 @@ model_portfolio/
 ├── main.py                  # CLI 入口 & UI 後端 Pipeline
 ├── report_builder.py        # HTML 報告建構（整合月報文字 AI 摘要）
 ├── preview_report.py        # 報告快速預覽 / 摘要微調 CLI
+├── install.bat              # Windows 首次安裝（雙擊，建 venv + 裝套件）
 ├── start.bat                # Windows 一鍵啟動（雙擊）
 │
 ├── engine/                  # 核心量化引擎（純計算，無 UI 依賴）
@@ -112,72 +113,132 @@ model_portfolio/
 
 ## 環境安裝
 
-**系統需求：** Python 3.10 以上
+**系統需求：** Python 3.10 或 3.11（開發環境為 3.10.9）。`requirements.txt` 已鎖定精確版本，確保各機器環境一致。
+
+### Windows（最簡單）
+
+直接**雙擊 `install.bat`**：自動建立 `venv`、安裝套件，並檢查 `.env` 與 `data/` 是否就緒。完成後日後啟動只要雙擊 `start.bat`。
+
+### macOS / Linux（或想手動安裝）
 
 ```bash
 python -m venv venv
 source venv/bin/activate          # macOS / Linux
-# venv\Scripts\activate           # Windows
+# venv\Scripts\activate           # Windows（手動）
 
 pip install -r requirements.txt
 ```
 
-| 套件 | 版本 | 用途 |
-|---|---|---|
-| pandas | ≥ 2.0 | 資料處理 |
-| numpy | ≥ 1.24 | 數值計算 |
-| PyPortfolioOpt | ≥ 1.5 | 投組最佳化 |
-| cvxpy | ≥ 1.4 | 最佳化求解器 |
-| streamlit | ≥ 1.33 | Web UI |
-| scikit-learn | ≥ 1.3 | 統計模型 |
-| statsmodels | ≥ 0.14 | 統計分析 |
-| anthropic | ≥ 0.40 | Claude AI 摘要（選用） |
-| google-generativeai | ≥ 0.8 | Gemini AI 摘要（選用） |
-| python-dotenv | ≥ 1.0 | 環境變數讀取 |
+> ⚠️ `venv/` **不能跨作業系統或跨電腦複製**（內含平台相依的執行檔），換機器一定要重建。
+
+**主要套件**（完整鎖定清單見 `requirements.txt`）：
+
+| 套件 | 用途 |
+|---|---|
+| pandas / numpy | 資料處理與數值計算 |
+| PyPortfolioOpt / cvxpy | 投組最佳化與求解器 |
+| scikit-learn / statsmodels | 統計模型與分析 |
+| streamlit / plotly | Web UI 與互動圖表 |
+| openpyxl | 讀取 Excel 資料 |
+| anthropic / google-generativeai | AI 摘要（Claude / Gemini，選用） |
+| python-dotenv | 讀取 `.env` API 金鑰 |
 
 ---
 
 ## 快速開始
 
-### 方式一：Streamlit Web UI（推薦）
+### 啟動方式一：雙擊（Windows，給非工程使用者）
+
+雙擊 `start.bat` → 黑色視窗別關 → 瀏覽器自動開啟 `http://localhost:8501`。詳見 `OPERATIONS.md` 第 0 章。
+
+### 啟動方式二：在 terminal 下指令（Mac / 進階）
+
+先啟用虛擬環境，再啟動 Streamlit。**務必在專案根目錄執行**（不能進 `ui/` 子目錄）。
 
 ```bash
+# macOS / Linux
+cd /path/to/model_portfolio
+source venv/bin/activate
+streamlit run ui/app.py
+```
+```bat
+REM Windows（命令提示字元，等同雙擊 start.bat）
+cd C:\KGI\model_portfolio
+venv\Scripts\activate
 streamlit run ui/app.py
 ```
 
 開啟後預設網址為 `http://localhost:8501`。
 
-**操作流程：**
-1. 側邊欄選擇「投資人類型」
-2. 依需求調整進階參數（頻率、目標函數、資產上限等）
-3. 展開「TAA 設定」面板，確認 ΔX 幅度與訊號門檻
-4. 點擊「▶️ Run Backtest」執行
-5. 查看三個分頁：績效總覽、策略對比圖、權重分析
+**UI 操作流程：**
+1. （每月）在左側「資料來源」上傳最新的 `SAA_RawData.xlsx` / `TAA_RawData.xlsx`
+2. 側邊欄選擇「投資人類型」
+3. 依需求調整進階參數（頻率、目標函數、資產上限等）
+4. 展開「TAA 設定」面板，確認 ΔX 幅度與訊號門檻
+5. 點擊「▶️ Run Backtest」執行
+6. 查看績效總覽、策略對比圖、權重分析，再按「生成報告」產出 HTML 策略報告
 
 **AI 摘要模型選擇（`--ai-provider`）：**
 
 | 指令 | 說明 | 需要 |
 |---|---|---|
-| `streamlit run ui/app.py` | 規則式摘要（預設） | 無 |
-| `streamlit run ui/app.py -- --ai-provider gemini` | Gemini 2.5 Flash | `GEMINI_API_KEY` |
+| `streamlit run ui/app.py` | **Gemini 2.5 Flash（預設）** | `GEMINI_API_KEY` |
 | `streamlit run ui/app.py -- --ai-provider sonnet` | Claude Sonnet 4.6 | `ANTHROPIC_API_KEY` |
 | `streamlit run ui/app.py -- --ai-provider opus` | Claude Opus 4.8 | `ANTHROPIC_API_KEY` |
+| `streamlit run ui/app.py -- --ai-provider nlg` | 規則式摘要（不需 API） | 無 |
 
-設定環境變數（建議寫入 `.env`）：
+設定 API 金鑰（寫入專案根目錄的 `.env`，**不會進版控**）：
 ```bash
 GEMINI_API_KEY="your_key_here"
 ANTHROPIC_API_KEY="your_key_here"
 ```
 
-> API 呼叫失敗或未設定 key 時，自動降回規則式摘要，不影響報告其他內容。
+> 未安裝對應套件、找不到 API key、或 API 呼叫失敗時，會自動降回規則式摘要，並在終端機印出原因、報告來源標籤標示「自動退回」。
 
-### 方式二：CLI 執行完整 Pipeline
+---
+
+## 報告產生與 AI 摘要微調（terminal）
+
+報告的「AI 策略摘要」會整合 **`TAA_RawData.xlsx` 的「月報文字」分頁**觀點與本期模型結論，產出一段研究報告風格的市場分析（含匯率／股市／債市看法）。除了用 UI 的「生成報告」按鈕，也可在 terminal 用 `preview_report.py` 快速預覽與微調——**這些微調只走 CLI，不會出現在 UI 介面**。
+
+```bash
+source venv/bin/activate        # Windows 改 venv\Scripts\activate
+
+# 1) 直接預覽（讀 .last_run.pkl，不需重跑回測）
+python preview_report.py                 # 預設季再平衡(Q) + Gemini 摘要
+python preview_report.py M               # 指定再平衡頻率 M/Q/A/2Q-DEC
+
+# 2) 微調摘要：用自然語言「下指令」，重生一次（最常用）
+python preview_report.py --tweak "日圓那段講保守一點，並強調非投等債的息收優勢"
+
+# 3) 整段定稿覆寫：自己寫好全文，直接取代、跳過 LLM（要逐字掌控時）
+python preview_report.py --override-file my_summary.txt
+
+# 4) 指定模型
+python preview_report.py --ai-provider sonnet --tweak "提到新任 Fed 主席沃許"
+```
+
+執行後會輸出 `report/_preview.html`，並在 `http://localhost:8765` 起一個本機預覽（Ctrl+C 結束）。
+
+| 參數 | 作用 |
+|---|---|
+| `--tweak "<指令>"` | 附加到摘要 prompt 的微調指令（最高優先）。**不會被記住**，只作用於這一次 |
+| `--override-file <路徑>` | 用檔案內的全文直接當摘要，跳過 LLM；來源標示「人工修訂定稿」 |
+| `--ai-provider <模型>` | `gemini`（預設）/ `sonnet` / `opus` / `nlg` |
+
+> 等價的環境變數：`SUMMARY_TWEAK` / `SUMMARY_OVERRIDE_FILE`（連 UI 產出也會套用，但畫面上看不到任何微調欄位）。
+>
+> ⚠️ `--tweak` 需要 LLM（Gemini/Claude）才生效；若在沒裝套件的 Python 環境（如 anaconda base）執行，會退回規則式且忽略微調——請確認在專案 `venv` 內執行（提示字開頭應為 `(venv)`）。
+
+---
+
+## CLI 執行完整 Pipeline
 
 ```bash
 python main.py
 ```
 
-執行後，SAA 結果輸出至 `outputs/`；若 `taa.enabled: true`，同時輸出 TAA 比較結果（`weights_taa.csv`、`taa_signals.csv`、`nav_taa_Q.csv`）。
+執行後，SAA 結果輸出至 `outputs/`；若 `taa.enabled: true`，同時輸出 TAA 比較結果（`weights_taa.csv`、`taa_signals.csv`、`nav_taa_Q.csv`）。`main.py` 會完整載入所有資料，可用來驗證每月更新的 Excel 是否有缺漏。
 
 ---
 
@@ -215,7 +276,7 @@ universe:
 dates:
   start_date: "2010-12-31"
   backtest_start: "2012-01-31"
-  backtest_end: "2025-10-31"     # 每次更新資料後調整為最新月份末
+  backtest_end: "auto"           # auto = 自動偵測 RETURN 工作表最新月份；亦可鎖定具體日期如 "2025-10-31"
 
 schedule:
   rebalance_rule: "Q"            # M | A | Q | 2Q-DEC（CLI 預設）
@@ -415,6 +476,7 @@ t-1 月末資料 → 建構 μ 和 Σ → 求解 w(t) → 用 t 月實際報酬 
 | 總體面因子 | `NAPMALL Index`（PMI）、`NFP TCH Index`（非農就業）、`FDTR Index`（聯邦基金利率） | 月頻 |
 | 市場面因子 | SPX 最新價（col 1）、200 日均線（col 2） | 日頻，系統自動取月底 |
 | 評價面因子 | `價差`（ERP）、`AVG+1XSIGMA`、`AVG-1XSIGMA` | 日頻，系統自動取月底 |
+| 月報文字（選用） | 兩欄：主題／內文（美國經濟、美國股市、殖利率/Fed、債券看法、匯率…） | 報告 AI 摘要的素材；留空不影響回測 |
 
 **TAA 歷史補充（可選）：**
 
