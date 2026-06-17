@@ -8,6 +8,7 @@ from __future__ import annotations
 import math
 import os
 from datetime import date
+from pathlib import Path
 import pandas as pd
 from pandas.tseries.offsets import MonthEnd
 import plotly.graph_objects as go
@@ -487,7 +488,11 @@ def _build_summary_prompt(sd: dict) -> str:
         f"市場面：S&P 500 {mkt_word} 200 日均線\n"
         f"評價面：ERP {erp_word}\n"
         f"配置：股票 {saa_s:.1%} → {taa_s:.1%}（Δ {taa_s - saa_s:+.1%}）\n\n"
-        f"請直接輸出該段分析："
+        + (
+            f"【本次額外微調要求（最高優先，須遵守）】\n{extra}\n\n"
+            if (extra := (sd.get("extra_instruction") or "").strip()) else ""
+        )
+        + "請直接輸出該段分析："
     )
 
 
@@ -559,14 +564,26 @@ def generate_summary_nlg(sd: dict) -> str:
     return f"<p>{p1}</p><p>{p2}</p><p>{p3}</p>"
 
 
+def _fallback_nlg(sd: dict, reason: str) -> str:
+    """退回規則式摘要，並把原因印到 stderr（避免靜默 fallback 害人誤判）。
+    若有 --tweak（extra_instruction），額外警告該微調不會生效。"""
+    import sys
+    msg = f"⚠️  AI 摘要退回規則式（{reason}）。規則式摘要不採用月報文字。"
+    if (sd.get("extra_instruction") or "").strip():
+        msg += " 本次 --tweak 微調指令不會生效。"
+    print(msg, file=sys.stderr)
+    sd["_fell_back"] = True  # 供 build_html_report 修正來源標籤
+    return generate_summary_nlg(sd)
+
+
 def generate_summary_claude(sd: dict, model: str) -> str:
     try:
         import anthropic
     except ImportError:
-        return generate_summary_nlg(sd)
+        return _fallback_nlg(sd, "未安裝 anthropic 套件，請確認在專案 venv 執行")
     api_key = os.environ.get("ANTHROPIC_API_KEY", "")
     if not api_key:
-        return generate_summary_nlg(sd)
+        return _fallback_nlg(sd, "找不到 ANTHROPIC_API_KEY，請確認 .env")
     try:
         client = anthropic.Anthropic(api_key=api_key)
         msg = client.messages.create(
@@ -575,32 +592,38 @@ def generate_summary_claude(sd: dict, model: str) -> str:
             messages=[{"role": "user", "content": _build_summary_prompt(sd)}],
         )
         return _wrap_paras(msg.content[0].text)
-    except Exception:
-        return generate_summary_nlg(sd)
+    except Exception as e:
+        return _fallback_nlg(sd, f"Claude API 呼叫失敗：{e}")
 
 
 def generate_summary_gemini(sd: dict) -> str:
     try:
         import google.generativeai as genai
     except ImportError:
-        return generate_summary_nlg(sd)
+        return _fallback_nlg(sd, "未安裝 google.generativeai 套件，請確認在專案 venv 執行")
     api_key = os.environ.get("GEMINI_API_KEY", "")
     if not api_key:
-        return generate_summary_nlg(sd)
+        return _fallback_nlg(sd, "找不到 GEMINI_API_KEY，請確認 .env")
     try:
         genai.configure(api_key=api_key)
         gemini_model = genai.GenerativeModel("gemini-2.5-flash")
         response = gemini_model.generate_content(_build_summary_prompt(sd))
         return _wrap_paras(response.text)
-    except Exception:
-        return generate_summary_nlg(sd)
+    except Exception as e:
+        return _fallback_nlg(sd, f"Gemini API 呼叫失敗：{e}")
 
 
 # ============================================================
 # 主函式
 # ============================================================
 
-def build_html_report(run_data: dict, rule: str, ai_provider: str = "nlg") -> str:
+def build_html_report(run_data: dict, rule: str, ai_provider: str = "nlg",
+                      summary_tweak: str | None = None,
+                      summary_override: str | None = None) -> str:
+    """summary_tweak：附加到 AI 摘要 prompt 的微調指令（自然語言）。
+    summary_override：整段定稿全文，提供時直接取代摘要、跳過 LLM。
+    兩者皆可改由環境變數提供（SUMMARY_TWEAK / SUMMARY_OVERRIDE /
+    SUMMARY_OVERRIDE_FILE），方便用 CLI 快速下指令而不動 UI。"""
     results_list = run_data["results_list"]
     name_list = run_data["name_list"]
     cfg = run_data["cfg"]
@@ -720,6 +743,17 @@ def build_html_report(run_data: dict, rule: str, ai_provider: str = "nlg") -> st
         "sonnet": "Claude Sonnet 4.6", "opus": "Claude Opus 4.8",
     }
     _ai_label = _ai_labels.get(ai_provider, ai_provider)
+
+    # 微調指令 / 整段覆寫（參數 > 環境變數；皆不顯示於 UI）
+    _tweak = (summary_tweak if summary_tweak is not None
+              else os.environ.get("SUMMARY_TWEAK", "")).strip()
+    _override = (summary_override if summary_override is not None
+                 else os.environ.get("SUMMARY_OVERRIDE", "")).strip()
+    if not _override:
+        _ovr_file = os.environ.get("SUMMARY_OVERRIDE_FILE", "")
+        if _ovr_file and Path(_ovr_file).exists():
+            _override = Path(_ovr_file).read_text(encoding="utf-8").strip()
+
     _commentary = taa_data.get("commentary")
     if not _commentary and taa_data.get("taa_path"):
         # 舊版快取（.last_run.pkl）可能未含 commentary，改由原始 Excel 補讀
@@ -727,7 +761,12 @@ def build_html_report(run_data: dict, rule: str, ai_provider: str = "nlg") -> st
         _commentary = load_monthly_commentary(taa_data["taa_path"])
     _sd = _build_summary_data(last, results_list, name_list, rule, cfg, profile,
                               X, saa_latest, taa_latest, commentary=_commentary)
-    if ai_provider == "gemini":
+    _sd["extra_instruction"] = _tweak
+
+    if _override:
+        _summary_body = _wrap_paras(_override)
+        _ai_label = "人工修訂定稿"
+    elif ai_provider == "gemini":
         _summary_body = generate_summary_gemini(_sd)
     elif ai_provider == "sonnet":
         _summary_body = generate_summary_claude(_sd, "claude-sonnet-4-6")
@@ -735,6 +774,8 @@ def build_html_report(run_data: dict, rule: str, ai_provider: str = "nlg") -> st
         _summary_body = generate_summary_claude(_sd, "claude-opus-4-8")
     else:
         _summary_body = generate_summary_nlg(_sd)
+    if _sd.get("_fell_back"):  # LLM 不可用而自動退回 → 標籤誠實反映
+        _ai_label = "規則式摘要（LLM 不可用，自動退回）"
     _ai_summary_html = (
         f'<div class="ai-summary">'
         f'<div class="ai-label">✦ AI 策略摘要</div>'
