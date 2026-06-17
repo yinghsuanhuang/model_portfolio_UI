@@ -26,9 +26,9 @@ model_portfolio/
 ├── config.yaml              # 全域參數設定（唯一設定入口）
 ├── requirements.txt         # Python 套件清單
 ├── main.py                  # CLI 入口 & UI 後端 Pipeline
-├── report_builder.py        # PDF 報告建構（整合 AI 摘要）
-├── preview_report.py        # 報告快速預覽腳本
-├── compare_pmi_backtest.py  # PMI 門檻回測比較工具
+├── report_builder.py        # HTML 報告建構（整合月報文字 AI 摘要）
+├── preview_report.py        # 報告快速預覽 / 摘要微調 CLI
+├── start.bat                # Windows 一鍵啟動（雙擊）
 │
 ├── engine/                  # 核心量化引擎（純計算，無 UI 依賴）
 │   ├── config.py            # YAML 設定讀取
@@ -51,8 +51,7 @@ model_portfolio/
 │   └── fetch_taa_history.py     # TAA 歷史資料抓取腳本
 │
 ├── report/                  # 報告生成模組
-│   ├── generate_report.py   # PDF 報告生成引擎
-│   └── metrics.py           # 報告用績效指標計算
+│   └── generate_report.py   # PDF 報告生成引擎（獨立執行）
 │
 └── outputs/                 # 回測產出（不納入版控）
     ├── weights.csv          # SAA 月頻建議配置權重

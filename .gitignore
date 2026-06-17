@@ -17,5 +17,5 @@ data/*.xlsx
 # 回測產出與暫存
 .last_run.pkl
 report/*.pdf
-report/_preview.html
+report/_preview*.html
 report/_imgs/
