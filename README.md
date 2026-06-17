@@ -1,7 +1,7 @@
 # 量化模型投組研究平台 (Quantitative Model Portfolio Research Platform)
 
 > 整合 SAA（戰略資產配置）Markowitz 最佳化與 TAA（戰術資產配置）三層訊號的內部量化研究工具。
-> 提供前瞻性預期報酬建模、滾動回測，以及 Streamlit 互動儀表板與 PDF 報告生成。
+> 提供前瞻性預期報酬建模、滾動回測，以及 Streamlit 互動儀表板與 HTML 策略報告生成。
 
 ---
 
@@ -50,8 +50,7 @@ model_portfolio/
 │   ├── taa_history_*.csv        # TAA 指標歷史補充（可選，fetch_taa_history.py 產生）
 │   └── fetch_taa_history.py     # TAA 歷史資料抓取腳本
 │
-├── report/                  # 報告生成模組
-│   └── generate_report.py   # PDF 報告生成引擎（獨立執行）
+├── report/                  # HTML 報告產出目錄（_preview*.html，不納入版控）
 │
 └── outputs/                 # 回測產出（不納入版控）
     ├── weights.csv          # SAA 月頻建議配置權重

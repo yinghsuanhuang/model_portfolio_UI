@@ -1,7 +1,6 @@
 """
 TAA 一頁式 HTML 報告產生器（編輯排版 + 互動 Plotly）。
 由 ui/app.py 的「生成報告」按鈕呼叫：build_html_report(run_data, rule) -> HTML 字串。
-與 report/generate_report.py（PDF）無關，互不影響。
 """
 from __future__ import annotations
 
